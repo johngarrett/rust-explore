@@ -126,3 +126,195 @@ for number in (1..4).rev() {
 }
 ```
 
+# understanding ownership
+- rust does not have a garbage collector
+
+## what is ownership?
+
+### the stack and the heap
+- the stack stores values as LIFO
+- *known & fixed size* -> stack
+- *unknown/variable size* -> heap
+- the heap is unorganized
+    - you allocate onto the heap and are returned a pointer
+        - this pointer can be stored on the stack
+- pushing on the stack is faster than allocating on the heap
+    - to allocate on the heap, the allocate has to search for free space
+- accessing data from the heap is slower because you have to follow a pointer
+- when you code calls a function, the values passed and the local variables get put on the stack. when the function is over, they're popped off
+
+### ownership rules
+- each value has a variable called it's *owner*
+- there can only be 1 owner at a time
+- when the owner goes out of scope, the value will be dropped
+
+### variable scope
+
+```rust
+{
+    let s = "hello"; // s is valid
+    // do stuff with s
+}
+// scope is over; s is no longer valid
+```
+
+### The `string` type
+- `String` is a complex data type
+    - this is different from a string literal
+- `let s = String::from("hello");`
+- `String` can be mutated but literals cannot
+
+### Memory and allocation
+- for a string literal, we know the content and size at compile time
+    -  it can be stored on the stack
+- `String` is a mutable, growable, piece of text
+    - it must be stored on the heap
+- instead of using `free` or `allocate`, memory is automatically returned once the variable goes out of scope
+    - internally, rust calls `drop`
+
+### variables and data: move
+
+```rust
+let x = 5;
+let y = x;
+```
+1. bind the value `5` to `x`
+2. make a copy of the value in `x` and bind it to `y`
+
+```rust
+let s1 = String::from("hello");
+let s2 = s1;
+```
+
+s1 contains: `{ ptr, len, capacity }`
+    - `ptr` points to the String in the heap
+    - `len` is the number of bytes String is currently using
+        - this comes from the allocator
+
+s2 contains: `{ ptr, len, capacity }`
+    - `ptr` address is copied from s1 (stack)
+    - `len` and `capcity`'s values are copied from s1 (stack)
+    - the data on the heap is NOT copied
+
+- when `s1` and `s2` go out of scope, they will *both* try to free the same memory
+    - this is called a double free error
+- to prevent a double free error, rust considers `s1` invalid as soon as `s2` is declared
+
+```rust
+let s1 = String::from("hello");
+let s2 = s1;
+
+println!("{}, world!", s1);
+```
+
+> this will not compile: move occurs because `s1` has type `std::string::String`, which does not implement the `Copy` trait
+
+instead of calling this a "shallow copy", rust calls this a `move`
+
+> s1 was moved into s2
+
+### variables and data: clone
+
+this is a "deep copy" of data
+
+```rust
+let s1 = String::from("hello");
+let s2 = s1.clone();
+
+println!("s1 = {}, s2 = {}", s1, s2);
+```
+
+>here, the heap data _does_ get copied into a new location for s2
+
+#### stack-only data: copy
+
+```rust
+let x = 5;
+let y = x;
+
+println!("x = {}, y = {}", x, y);
+```
+
+because integers have a known size at compile time, copies of the value are quickly made
+
+the `Copy` trait can be placed on data types stored on the stack
+    -  `Copy` cannot be applied if the type has implimented the `Drop` trait
+
+what types are `Copy`?
+- all integer types
+- all boolean types
+- all chars
+- tuples iff they only contain types that are also copy
+    - e.g. `(i32, i32)` is `Copy` but `(i32, String)` is not
+
+### ownership and functions
+
+```rust
+fn main() {
+    let s = String::from("hello");  // s comes into scope
+
+    takes_ownership(s);             // s's value moves into the function...
+    // ... and so is no longer valid here
+
+    let x = 5;                      // x comes into scope
+
+    makes_copy(x);                  // x would move into the function,
+    // but i32 is Copy, so it’s okay to still
+    // use x afterward
+
+} // Here, x goes out of scope, then s. But because s's value was moved, nothing
+// special happens.
+
+fn takes_ownership(some_string: String) { // some_string comes into scope
+    println!("{}", some_string);
+} // Here, some_string goes out of scope and `drop` is called. The backing
+// memory is freed.
+
+fn makes_copy(some_integer: i32) { // some_integer comes into scope
+    println!("{}", some_integer);
+} // Here, some_integer goes out of scope. Nothing special happens.
+```
+using `s` after the call to `takes_ownership` will throw a compile-time error
+
+### return values and scope
+
+returning values can also transfer ownership
+
+```rust
+fn main() {
+    let s1 = gives_ownership();         // gives_ownership moves its return
+    // value into s1
+
+    let s2 = String::from("hello");     // s2 comes into scope
+
+    let s3 = takes_and_gives_back(s2);  // s2 is moved into
+    // takes_and_gives_back, which also
+    // moves its return value into s3
+} // Here, s3 goes out of scope and is dropped. s2 goes out of scope but was
+// moved, so nothing happens. s1 goes out of scope and is dropped.
+
+fn gives_ownership() -> String {             // gives_ownership will move its
+    // return value into the function
+    // that calls it
+
+    let some_string = String::from("hello"); // some_string comes into scope
+
+    some_string                              // some_string is returned and
+    // moves out to the calling
+    // function
+}
+
+// takes_and_gives_back will take a String and return one
+fn takes_and_gives_back(a_string: String) -> String { // a_string comes into
+    // scope
+
+    a_string  // a_string is returned and moves out to the calling function
+}
+```
+
+- returning a `String` gives the ownership to the caller
+- taking `String` and returning `String` will take and return the param
+- When a variable that includes data on the heap goes out of scope, the value will be cleaned up by drop unless the data has been moved to be owned by another variable.
+
+## References and Borrowing
+
