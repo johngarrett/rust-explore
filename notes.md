@@ -317,4 +317,104 @@ fn takes_and_gives_back(a_string: String) -> String { // a_string comes into
 - When a variable that includes data on the heap goes out of scope, the value will be cleaned up by drop unless the data has been moved to be owned by another variable.
 
 ## References and Borrowing
+taking in a reference to an object:
 
+```rust
+fn main() {
+    let s1 = String::from("hello!");
+    let len = calcuate_length(&s1);
+    println!("the length of '{}' is {}.'", s1, len);
+}
+
+fn calcuate_length(s: &String) -> usize {
+    s.len()
+}
+```
+
+- `s` refers to the value of `s1` but does not own it
+    - because it does not own it, the value wont be dropped but the ref will
+- this is called "borrowing"
+- immutable by default
+
+### mutable references
+
+```rust
+fn main() {
+    let mut s = String::from("hello");
+
+    change(&mut s);
+}
+
+fn change(some_string: &mut String) {
+    some_string.push_str(", world");
+}
+```
+
+- *note* you can only have 1 mutable reference to a piece of data at a time
+
+```rust
+let r1 = &mut s;
+let r2 = &mut s;
+```
+
+> this is not allowed
+
+this check can prevent a data race at compile time
+
+issues such as:
+- Two or more pointers access the same data at the same time.
+- At least one of the pointers is being used to write to the data.
+- There’s no mechanism being used to synchronize access to the data.
+
+you *can* have more than one immutable reference at a time if no mutable references are present
+
+```rust
+let mut s = String::from("hello");
+
+{
+    let r1 = &mut s;
+} // r1 goes out of scope here, so we can make a new reference with no problems.
+
+let r2 = &mut s;
+```
+> this is okay and works because of the scopes
+
+```rust
+let mut s = String::from("hello");
+
+let r1 = &s; // no problem
+let r2 = &s; // no problem
+let r3 = &mut s; // BIG PROBLEM
+
+println!("{}, {}, and {}", r1, r2, r3);
+```
+> does not work because you can't have both immutable and mutable refs at the same time
+
+```rust
+let mut s = String::from("hello");
+
+let r1 = &s; // no problem
+let r2 = &s; // no problem
+println!("{} and {}", r1, r2);
+// r1 and r2 are no longer used after this point
+
+let r3 = &mut s; // no problem
+println!("{}", r3);
+```
+
+### Dangling references
+- can be prevented with a compile-time error
+
+```rust
+fn dangle() -> &String { // dangle returns a reference to a String
+    let s = String::from("hello"); // s is a new String
+
+    &s // we return a reference to the String, s
+} // Here, s goes out of scope, and is dropped. Its memory goes away.
+  // Danger!
+```
+> when the code of dangle is finished, s will be deallocated
+
+to solve this, we should return `s` in full to transfer ownership
+
+## The slice type
