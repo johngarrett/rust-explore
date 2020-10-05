@@ -418,3 +418,82 @@ fn dangle() -> &String { // dangle returns a reference to a String
 to solve this, we should return `s` in full to transfer ownership
 
 ## The slice type
+
+a slice lets you reference a contiguous sequence of elements with no ownership
+
+```rust
+fn first_word(s: &String) -> usize {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() { // enumerating
+        if item == b' ' { // b' ' represents a byte string
+            return i;
+        }
+    }
+
+    s.len()
+}
+```
+we could do this, but it's not great...
+
+if any of the following happens, we're screwed:
+- the callee mutates the string
+- the string falls out of scope
+- the string is cleared
+- etc.
+
+###String slice
+
+a reference to a part of a string
+
+```rust
+let s = String::from("hello world");
+
+let hello = &s[0..5];
+let world = &s[6..11];
+```
+
+with the `..` range syntax:
+- `0..2` is equivalent to `..2`
+- `3..len` is equivalent to `3..`
+- `0..len` is equivalent to `..`
+
+string slices *must occur at valid utf-8 character boundaries*
+
+### getting the first word with string slices
+
+```rust
+fn first_word(s: &String) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[0..i];
+        }
+    }
+
+    &s[..]
+}
+```
+
+with slices, the following now breaks
+
+```rust
+fn main() {
+    let mut s = String::from("hello world");
+
+    let word = first_word(&s);
+
+    s.clear(); // error!
+
+    println!("the first word is: {}", word);
+}
+```
+> word derrives from an immutable borrow, it is then used when printing 
+> because of this, s.clear() (a mutable borrow) cannot occur
+
+- string literals are slices
+    - they're slices pointing to immutable memory  
+
+
+# Using structs to structure related data
