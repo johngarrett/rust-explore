@@ -497,3 +497,280 @@ fn main() {
 
 
 # Using structs to structure related data
+
+## defining and instantiating structs
+
+```rust
+struct User {
+    username: String,
+    email: String,
+    sign_in_count: u64,
+    active: bool,
+}
+```
+to use a struct, we have to create an instance
+
+```rust
+let user1 = User {
+    email: String::from("someone@example.com"),
+    username: String::from("someusername123"),
+    active: true,
+    sign_in_count: 1,
+};
+
+user1.email = String::from("another@a.com");
+```
+
+we can change this _because_ the instance is mutable
+    - note: the entire instance must be mutable, rust doesn't allow us to mark certain fields as mutable
+
+### field init shorthand
+
+```rust
+let t = User {
+    email,
+    username,
+    active: true,
+    sign_in_count: 1,
+}
+```
+
+> because the parameter names are the same as the argument names, you don't have to repeat them
+
+### creating instances from other instances
+
+this:
+
+```rust
+let user2 = User {
+    email: String::from("another@example.com"),
+    username: String::from("anotherusername567"),
+    active: user1.active,
+    sign_in_count: user1.sign_in_count,
+};
+```
+
+is the same as:
+
+```rust
+let user2 = User {
+    email: String::from("another@example.com"),
+    username: String::from("anotherusername567"),
+    ..user1
+};
+```
+
+### Tuple Structs
+
+structs that look similar to tuples but have the benefit of naming
+
+```rust
+struct Color(i32, i32, i32);
+struct Point(i32, i32, i32);
+
+let black = Color(0, 0, 0);
+let origin = Point(0, 0, 0);
+```
+
+### unit-like structs
+
+these are structs without any fields.
+
+they behave similarly to `()`.
+
+these can be useful if you want to impliment a trait on some type
+
+### ownership of struct data
+
+instances of a struct should own all it's data; the data should be valid as long as the struct is valid
+
+> this is the difference between using `&str` and `String`
+
+to store refs in structs, you need to make use of *lifetimes*
+
+## Example using structs
+
+```rust
+fn main() {
+    let width1 = 30;
+    let height1 = 50;
+
+    println!(
+        "The area of a rectangle is {} square pixels.",
+        area(width1, height1)
+    );
+}
+
+fn area(width: u32, height: u32) -> u32 {
+    width * height
+}
+```
+
+it would be more readable to group the width and height together. The parameters are related but that's not expressed anywhere in the program
+
+```rust
+fn main() {
+    let rect = (30, 50);
+    println!(
+        "The area of a rectangle is {} square pixels.",
+        area(rect)
+    );
+}
+
+fn area(dimensions: (u32, u32) -> u32 {
+    dimensions.0 * dimensions.1
+}
+```
+
+this adds better structure but is actually less readable. we don't know what is at .0 and what is at .1
+
+```rust
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+fn main() {
+    let rect1 = Rectangle {
+        width: 30,
+        height: 50,
+    };
+
+    println!(
+        "The area of the rectangle is {} square pixels.",
+        area(&rect1)
+    );
+}
+
+fn area(rectangle: &Rectangle) -> u32 {
+    rectangle.width * rectangle.height
+}
+```
+
+this is more readable and provides clarity to the programmer
+
+we can go a step further though...
+
+if `Rectangle` is printed, it should display its area
+
+> the best way to do so is by implementing `std::fmt::Display`
+> this is out of scope right now
+
+```rust
+#[derive(Debug)]
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+
+fn main() {
+    let rect1 = Rectangle {
+        width: 30,
+        height: 50,
+    };
+
+    println!("rect1 is {:?}", rect1);
+}
+```
+
+this will print out: `rect1 is Rectangle { width: 30, height: 50 }`
+
+## Method Syntax
+
+methods are similar to functions but they're defined within the context of a struct (or enum or trait...)
+
+```rust
+#[derive(Debug)]
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+
+impl Rectangle {
+    fn area(&self) -> u32 {
+        self.width * self.height
+    }
+}
+
+fn main() {
+    let rect1 = Rectangle {
+        width: 30,
+        height: 50,
+    };
+
+    println!(
+        "The area of the rectangle is {} square pixels.",
+        rect1.area()
+    );
+}
+```
+
+`impl` is called an implementation block. (i think it's similar to extensions in swift)
+
+methods can take ownership of self or borrow self mutably and immutably
+
+`impl` is a good place to put all the tings we can do with an  instance of a type
+
+### the `->` operator
+
+in c/c++, `.` is used when directly calling a method and `->` is used when calling a method on a pointer.
+
+rust has *automatic referencing and dereferencing*, calling a method is a place where rust has this behavior
+
+`object.something()`
+rust will automatically add in `&`, `&mut`, or `*` so `object` matches the signature of the method
+
+```rust 
+p1.distance(&p2);
+(&p1).distance(&p2);
+```
+> these are the same
+
+### methods with more parameters
+
+```rust
+impl Rectangle {
+    fn can_hold(&self, other_rect: &Rectangle) -> bool {
+       self.width >= other_rect.width 
+            && self.height >= other_rect.height 
+    }
+}
+```
+
+### Associated Functions
+
+associated functions _don't_ take self in as a parameter
+
+these are often used for constructors (think php)
+
+```rust
+impl Rectangle {
+    fn square(size: u32) -> Rectangle {
+        Rectangle {
+            width: size,
+            height: size,
+        }
+    }
+}
+```
+
+to call this, we would do the following:
+`let sq = Rectangle::square(3);`
+
+
+### multiple `impl` blocks
+
+```rust
+impl Rectangle {
+    fn area(&self) -> u32 {
+        self.width * self.height
+    }
+}
+
+impl Rectangle {
+    fn can_hold(&self, other: &Rectangle) -> bool {
+        self.width > other.width && self.height > other.height
+    }
+}
+```
+
+there is no real raeson to seperate these methods but the syntax is valid
