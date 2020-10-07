@@ -774,3 +774,237 @@ impl Rectangle {
 ```
 
 there is no real raeson to seperate these methods but the syntax is valid
+
+# Enums and Pattern matching
+
+## defining an enum
+
+```rust
+enum IpAddrKind {
+    V4,
+    V6,
+}
+
+let four = IpAddrKind::V4;
+let six = IpAddrKind::V6;
+```
+
+the variants of an enum are namespaced under its identifier
+
+`fn route(ip_kind: IpAddrKind) {}`
+> enums are arguments
+
+```rust
+enum IpAddrKind {
+    V4,
+    V6,
+}
+
+struct IpAddr {
+    kind: IpAddrKind,
+    address: String,
+}
+
+let home = IpAddr {
+    kind: IpAddrKind::V4,
+    address: String::from("127.0.0.1"),
+};
+
+let loopback = IpAddr {
+    kind: IpAddrKind::V6,
+    address: String::from("::1"),
+};
+```
+
+the code above can be simplified into a single enum
+
+```rust
+enum IpAddr {
+    V4(String),
+    V6(String),
+}
+
+let home = IpAddr::V4(String::from("127.0.0.1"));
+let loopback = IpAddr::V6(String::from("::1"));
+```
+
+each variant can have a different type and amount of data
+
+```rust
+enum IpAddr {
+    V4(u8, u8, u8, u8),
+    V6(String),
+}
+
+let home = IpAddr::V4(127, 0, 0, 1);
+
+let loopback = IpAddr::V6(String::from("::1"));
+```
+
+```rust
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(i32, i32, i32),
+}
+```
+
+- `quit` has no data associated with it
+- `movie` includes a struct
+- `write`includes a single string
+
+we can also define methods onto a struct
+
+```rust
+impl Message {
+    fn call(&self) {
+        // method body would be defined here
+    }
+}
+
+let m = Message::Write(String::from("hello"));
+m.call();
+```
+
+## the option enum and its advantages over null values
+
+optionality in rust is implimented as an enum
+
+```rust
+enum Option<T> {
+    Some(T),
+    None,
+}
+```
+
+the option enum is automatically brought in with the prelude; no need to include it
+
+```rust
+let some_number = Some(5);
+let some_string = Some("a string");
+
+let absent_number: Option<i32> = None;
+```
+
+> when using None as a value, you have to tell the compiler what T is
+
+```rust
+let x: i8 = 5;
+let y: Option<i8> = Some(5);
+
+let sum = x + y;
+```
+
+> this does not work; rust doesn't automatically unwrap y
+
+## the match control flow operator
+
+similar to a traditional `switch` statement 
+
+```rust
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter,
+}
+
+fn value_in_cents(coin: Coin) -> u8 {
+    match coin {
+        Coin::Penny => 1,
+        Coin::Nickel => 5,
+        Coin::Dime => 10,
+        Coin::Quarter => 25,
+    }
+}
+```
+
+in an `if` statement, the condition must be boolean. with a `match`, it can be any type
+
+### Patterns that bind to values
+
+```rust
+#[derive(Debug)] // so we can inspect the state in a minute
+enum UsState {
+    Alabama,
+    Alaska,
+    // --snip--
+}
+
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter(UsState),
+}
+
+fn value_in_cents(coin: Coin) -> u8 {
+    match coin {
+        Coin::Penny => 1,
+        Coin::Nickel => 5,
+        Coin::Dime => 10,
+        Coin::Quarter(state) => {
+            println!("State quarter from {:?}!", state);
+            25
+        }
+    }
+}
+
+. . .
+value_in_cents(Coin::Quarter(UsState::Alaska))
+```
+
+### matching with Option<T>
+
+```rust
+fn plus_one(x: Option<i32>) -> Option<i32> {
+    match x {
+        None => None,
+        Some(i) => Some(i + 1),
+    }
+}
+
+let five = Some(5);
+let six = plus_one(five);
+let none = plus_one(None);
+```
+
+- `i` binds to the value contained in `Some`
+- *`matches` must be exhaustive*
+
+### the `_` Placeholder
+
+```rust
+let some_u8_value = 0u8;
+match some_u8_value {
+    1 => println!("one"),
+    3 => println!("three"),
+    5 => println!("five"),
+    7 => println!("seven"),
+    _ => (),
+}
+```
+
+the `_` will match any value. the `()` is just a unit value, basically saying it does nothing
+
+## control flow with `if let`
+
+`if let` takes a pattern and expression seperatated by an equal sign
+
+```rust
+let mut count = 0;
+match coin {
+    Coin::Quarter(state) => println!("State quarter from {:?}!", state),
+    _ => count += 1,
+}
+
+// versus
+
+let mut count = 0;
+if let Coin::Quarter(state) = coin {
+    println!("State quarter from {:?}!", state);
+} else {
+    count += 1;
+}
+```
