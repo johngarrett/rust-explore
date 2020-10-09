@@ -1011,3 +1011,271 @@ if let Coin::Quarter(state) = coin {
 
 # Managing growing projects with packages, crates and modules
 
+## Packages and Crates
+
+- A `crate` is a binary library
+- A `package` is one or more crates that provide a set of functionality
+
+## Defining Modules to Control Scope and Privacy
+
+- The `use` keyword brings a path into scope
+- the `pub` keyword makes them public
+
+`cargo new --lib`
+
+```rust
+mod front_of_house {
+    mod hosting {
+        fn add_to_waitlist() {}
+
+        fn seat_at_table() {}
+    }
+
+    mod serving {
+        fn take_order() {}
+
+        fn serve_order() {}
+
+        fn take_payment() {}
+    }
+}
+```
+> src/lib.rs
+
+- a module is defined by starting with the `mod` keyword then specifing the name of the module
+
+- `hosting` and `serving` are both children to `front_of_house`
+
+## paths
+
+two forms:
+1. an `absolute` path starts from a crate root
+    - uses a crate name or literal crate
+2. a `relative` path starting from the current module
+    - uses `self` and `super`
+
+```rust
+mod front_of_house {
+    mod hosting {
+        fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // Absolute path
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    // Relative path
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+> this doesn't work, `hosting` MUST be declared as public
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+```
+
+> both the `mod` and all its `fn`s need to be declared as public
+
+### Starting relative paths with super
+
+```rust
+fn serve_order() {}
+
+mod back_of_house {
+    fn fix_incorrect_order() {
+        cook_order();
+        super::serve_order();
+    }
+
+    fn cook_order() {}
+}
+```
+> the `super` keyword allows us to go back to the parent module of `back_of_house`
+
+### Making structs and enums public
+
+- if you mark a struct as `pub`, all of it's fields will still be private
+- if we mark an enum as `pub`, all of it's variants are public
+
+```rust
+mod back_of_house {
+    pub struct Breakfast {
+        pub toast: String,
+        seasonal_fruit: String,
+    }
+
+    impl Breakfast {
+        pub fn summer(toast: &str) -> Breakfast {
+            Breakfast {
+                toast: String::from(toast),
+                seasonal_fruit: String::from("peaches"),
+            }
+        }
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // Order a breakfast in the summer with Rye toast
+    let mut meal = back_of_house::Breakfast::summer("Rye");
+    // Change our mind about what bread we'd like
+    meal.toast = String::from("Wheat");
+    println!("I'd like {} toast please", meal.toast);
+
+    // The next line won't compile if we uncomment it; we're not allowed
+    // to see or modify the seasonal fruit that comes with the meal
+    // meal.seasonal_fruit = String::from("blueberries");
+}
+```
+
+```rust
+mod back_of_house {
+    pub enum Appetizer {
+        Soup,
+        Salad,
+    }
+}
+
+pub fn eat_at_restaurant() {
+    let order1 = back_of_house::Appetizer::Soup;
+    let order2 = back_of_house::Appetizer::Salad;
+}
+```
+
+## bringing paths in with `use`
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+}
+```
+> we only have to call `hosting::` and not `crate::from_of_house::hosting`
+
+`use` can be used to bring in items via a relative or absolute path
+
+### creating idiomatic use paths
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+use crate::front_of_house::hosting::add_to_waitlist;
+
+pub fn eat_at_restaurant() {
+    add_to_waitlist();
+    add_to_waitlist();
+    add_to_waitlist();
+}
+```
+
+standard library
+
+```rust
+use std::collections::HashMap;
+
+fn main() {
+    let mut map = HashMap::new();
+    map.insert(1, 2);
+}
+```
+
+### using the `as` keyword
+
+```rust
+use std::fmt::Result;
+use std::io::Result as IoResult;
+
+fn function1() -> Result {
+    // --snip--
+}
+
+fn function2() -> IoResult<()> {
+    // --snip--
+}
+```
+
+### re-exporting names with `pub` and `use`
+
+by using `use`, we bring a name into scope for us
+
+if you use `pub use`, all code that calls our code can refer to the same
+
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+
+pub use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant() {
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+}
+```
+
+### using external packages
+
+`std` is a crate external to our package
+
+```
+[dependencies]
+rand = "0.5.5"
+```
+
+> Cargo.toml
+
+`use rand::Rng;`
+
+> main.rs
+
+### using nested paths to cleanup `use`
+
+```rust
+use std::cmp::Ordering;
+use std::io;
+
+// vs
+use std::{cmp::Ordering, io};
+```
+
+### the glob operator
+
+brings in _all_ public items defined in a path
+
+`use std::collections::*;`
+
+## Separating modules into different files
+
+`pub mod hosting;`
+
+> `src/front_of_house.rs`
+
+using a semi colon after `mod ...` tells rust to load the contents of the module from another file with the same name
+
+```rust
+pub fn add_to_waitlist() {}
+```
+
+> `src/front_of_house/hosting.rs`
+
+
