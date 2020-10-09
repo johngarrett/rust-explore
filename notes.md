@@ -1008,3 +1008,6 @@ if let Coin::Quarter(state) = coin {
     count += 1;
 }
 ```
+
+# Managing growing projects with packages, crates and modules
+
