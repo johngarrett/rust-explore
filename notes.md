@@ -1279,3 +1279,376 @@ pub fn add_to_waitlist() {}
 > `src/front_of_house/hosting.rs`
 
 
+# Common Collections
+
+rust's standard library includes useful data structures called _collections_
+
+three to discuss:
+- vector
+- string
+- hash map
+
+## Storing lists of values with vectors
+
+`let v: Vec<i32> = Vec::new();`
+
+> bc we aren't initalizing with any values, we must specify the type
+
+`let v = vec![1, 2, 3];`
+
+> rust can infer the type
+
+### updating a vector
+
+- must be `mut` able
+
+```rust
+let mut v = Vec::new();
+
+v.push(5);
+v.push(6);
+v.push(7);
+v.push(8);
+```
+
+a vector is freed when it goes out of scope, like any other struct
+
+### Reading 
+
+```rust
+let v = vec![1, 2, 3, 4, 5];
+
+let third: &i32 = &v[2];
+println!("The third element is {}", third);
+
+match v.get(2) {
+    Some(third) => println!("The third element is {}", third),
+    None => println!("There is no third element."),
+}
+```
+
+> you can either index or use `.get`
+
+`get` will return an `Option<&T>`
+
+accessing an invalid location with `[]` will cause the program to panic
+
+accessing an invalid location with `.get()` will simply return `None`
+
+```rust
+let mut v = vec![1, 2, 3, 4, 5];
+
+let first = &v[0];
+
+v.push(6);
+
+println!("The first element is: {}", first);
+```
+
+> COMPILER ERROR
+
+the 3rd line is trying to update `v` but it is immutably borrowed by `first`
+
+- if adding a new element caused the vector to be reallocated elsewhere, `first` would point to invalid memory
+
+### Iterating over values
+
+```rust
+let v = vec![100, 32, 57];
+
+for i in &v {
+    println!("{}", i);
+}
+```
+
+> iterating with immutable references 
+
+```rust
+let v = vec![100, 32, 57];
+
+for i in &mut v {
+    *i += 50;
+}
+```
+
+> iterating with mutable references
+
+### using an enum to store multiple types
+
+```rust
+enum SpreadsheetCell {
+    Int(i32),
+    Float(f64),
+    Text(String),
+}
+
+let row = vec![
+    SpreadsheetCell::Int(3),
+    SpreadsheetCell::Text(String::from("blue")),
+    SpreadsheetCell::Float(10.12),
+];
+```
+
+`push`, `pop`, etc. are also valid functions of a vector
+
+## Storing UTF-8 with Strings
+
+### What is a string?
+
+rust only has one string type in the core language, `str`
+
+the `String` type, provided by the standard library, is:
+- growable
+- mutable
+- owned
+- UTF-8 complient
+
+other strings also exist, such as `OsString, OsStr, CString, CStr`
+
+
+### creating a new string
+
+`let mut s = String::new();`
+
+```rust
+let data = "initial contents";
+
+let s = data.to_string();
+
+// the method also works on a literal directly:
+let s = "initial contents".to_string();
+```
+
+> using `to_string` to create a `String` from a string literal
+
+`let s = String::from("initial contents");`
+
+### Updating a String
+
+a `String` can grow in size and it's contents can change
+
+```rust
+let mut s = String::from("foo");
+s.push_str("bar");
+```
+
+> appending a string slice to foo
+
+`push_str` takes ownership of any string passed to it
+
+`push` takes a single character and adds it to the string
+
+### Concatenation with `+` or `format!`
+
+```rust
+let s1 = String::from("Hello, ");
+let s2 = String::from("world!");
+let s3 = s1 + &s2; // note s1 has been moved here and can no longer be used
+```
+
+> `s1` is no longer valid as it is now owned by `s3`
+
+you can only add a `&str` to a `String`
+
+in this example, rust `coerces` the `&String` of `s2` into a `&str`
+
+```rust
+let s1 = String::from("tic");
+let s2 = String::from("tac");
+let s3 = String::from("toe");
+
+let s = format!("{}-{}-{}", s1, s2, s3);
+```
+
+> `format!` works the same was as `prinln!` but returns a `String`
+
+### indexing into Strings
+
+you *cannot* use `[]` to index a String
+
+internally, `String` is a wraper over a `Vec<u8>`
+
+`let hello = String::from("Hola");`
+
+> this has a length of 4, each letter is 1 byte unicode encoded
+
+`let hello = String::from("Здравствуйте");`
+
+> this is 24 bytes, *not 12*, unicode scalars are used here
+
+the length mismatches are why `[]` indexing does not work
+
+
+with a string, indexing operations cannot be garunteed to be `O(1)`
+
+### Slicing Strings
+
+you _can_ use `[]` with a range to create a slice
+
+```rust
+let hello = "Здравствуйте";
+
+let s = &hello[0..4];
+```
+
+> `s` will be a `&str` that contains the first 4 bytes of the string
+
+### iterating
+
+```rust
+for c in "नमस्ते".chars() {
+    println!("{}", c);
+}
+```
+
+> prints each character onto a new line
+
+```rust
+for b in "नमस्ते".bytes() {
+    println!("{}", b);
+}
+```
+
+> prints the 18 bytes that make up the `String`
+
+
+## Hash Maps
+
+`HashMap<K, V>` stores a mapping of keys of type `K` to values of type `V`
+
+### creating a new hash map
+
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+```
+
+> we need to first `use` the `HashMap` from the collections
+
+- hashmaps store their data on the heap
+- hashmaps are homogenous
+
+```rust
+use std::collections::HashMap;
+
+let teams = vec![String::from("Blue"), String::from("Yellow")];
+let initial_scores = vec![10, 50];
+
+let mut scores: HashMap<_, _> =
+    teams.into_iter().zip(initial_scores.into_iter()).collect();
+```
+
+`HashMap<_, _>` is needed here because `collect` can conform to many different datatypes. using `_`'s, rust is told to infer the type 
+
+### HashMaps and Ownership
+
+types that implement the `Copy` trait, like `i32`, the values are copied into the hash map
+
+for owned values, like `String`, the values will be moved and the hash map will be the owner
+
+
+```rust
+use std::collections::HashMap;
+
+let field_name = String::from("Favorite color");
+let field_value = String::from("Blue");
+
+let mut map = HashMap::new();
+map.insert(field_name, field_value);
+// field_name and field_value are invalid at this point, try using them and
+// see what compiler error you get!
+```
+
+### Accessing values
+
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+
+let team_name = String::from("Blue");
+let score = scores.get(&team_name);
+```
+
+> `score` has the value that's associated with the Blue team
+
+`.get(_)` returns an `Option<&V>`
+
+you can iterate as such:
+
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+
+for (key, value) in &scores {
+    println!("{}: {}", key, value);
+}
+```
+
+### Updating a Hash Map
+
+each key can only have one value associated with it at a time
+
+thus, if we insert a value into a hashmap where a value already exists, the incoming value will overwrite the pre-existing one
+
+```rust
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Blue"), 25);
+
+println!("{:?}", scores);
+```
+
+> this code will print `{"Blue": 25}`; `10` is gone
+
+#### only insert if the key has no value
+
+```rust
+scores.insert(String::from("Blue"), 10);
+
+scores.entry(String::from("Yellow")).or_insert(50);
+scores.entry(String::from("Blue")).or_insert(50);
+
+println!("{:?}", scores);
+```
+
+> we want to check if the key associated with `yellow` has a value. if it doesn't, we insert 50
+
+> output: {"Yellow": 50, "Blue": 10}
+
+#### updating based on the old value
+
+```rust
+use std::collections::HashMap;
+
+let text = "hello world wonderful world";
+
+let mut map = HashMap::new();
+
+for word in text.split_whitespace() {
+    let count = map.entry(word).or_insert(0); // occurances ?? 0
+    *count += 1;
+}
+
+println!("{:?}", map);
+```
+
+> prints: {"world": 2, "hello": 1, "wonderful": 1}
+
+### Hashing functions
+
+by default, `HashMap` used a "cryptographically strong" hashing function
+
+you _can_ switch the hasher by building a hasher that impliments the `BuildHasher` trait
+
+
