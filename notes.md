@@ -1652,3 +1652,260 @@ by default, `HashMap` used a "cryptographically strong" hashing function
 you _can_ switch the hasher by building a hasher that impliments the `BuildHasher` trait
 
 
+# Error Handling
+
+Most of the time, rust requires you to acknowledge the possibility of an error and take an action at compile time
+
+two types: `recoverable` and `unrecoverable`
+
+recoverable errors have a type `Result<T, E>`
+unrecoverable errors call the macro `panic!`
+
+## unrecoverable errors with `panic!`
+
+by default, when a panic occurs, rust will clean up the stack and abort
+
+```
+[profile.release]
+panic = 'abort'
+```
+
+> this would cause the program to abort outright without clearing the stack -- the OS must do so
+
+### using a `panic!` backtrace
+
+```rust
+fn main() {
+    let v = vec![1, 2, 3];
+
+    v[99];
+}
+```
+
+> will output: thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99'
+
+setting `RUST_BACKTRACE=` to anthing besides zero will give us a backtrace
+
+`RUST_BACKTRACE=1 cargo run`
+
+## Recoverable errors with `Result`
+
+```rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => panic!("Problem opening the file: {:?}", error),
+    };
+}
+```
+> the File::open method returns a result type
+
+`Result::` is automatically brought into scope by the prelude
+
+### Matching on different errors
+
+```rust
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => match error.kind() {
+            ErrorKind::NotFound => match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => panic!("Problem creating the file: {:?}", e),
+            },
+            other_error => {
+                panic!("Problem opening the file: {:?}", other_error)
+            }
+        },
+    };
+}
+```
+
+`io::Error` has a method `kind` that returns an `io::ErrorKind` value
+
+in the code above, we match against the inital result type. If an error occured and it was because the file was `NotFound`, create a new file. After creating a new file, match on its result and continue
+
+```rust
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt").unwrap_or_else(|error| {
+        if error.kind() == ErrorKind::NotFound {
+            File::create("hello.txt").unwrap_or_else(|error| {
+                panic!("Problem creating the file: {:?}", error);
+            })
+        } else {
+            panic!("Problem opening the file: {:?}", error);
+        }
+    });
+}
+```
+
+> this does the same as the block above, slightly more readable
+
+### `unwrap` and `expect`
+
+this allows us to interact with result types without the verbosity of `match`
+
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").unwrap();
+}
+```
+
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+```
+
+> this is similar to `unwrap()` but you are able to provide a good error message
+
+### Propagating Errors
+
+returning the error to the calling code so that it can decide what to do
+
+```rust
+
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let f = File::open("hello.txt");
+
+    let mut f = match f {
+        Ok(file) => file,
+        Err(e) => return Err(e),
+    };
+
+    let mut s = String::new();
+
+    match f.read_to_string(&mut s) {
+        Ok(_) => Ok(s),
+        Err(e) => Err(e),
+    }
+}
+```
+
+> The code that calls this will have to handle getting either an `Ok` value or an `Err`
+
+#### the `?` shortcut for propagating errors
+
+```rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut f = File::open("hello.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+> based off the code block above
+
+the `?` after a `Result` is defined to work very similarly to our previous `match` expression. If the value is `Ok`, the value inside `Ok` will be returned. If the value is an `Err`, the `Err` will be returned
+
+*however*, the `?` operator requires all errors to be of the same type. As long as each error caught implements the `from` function, the `?` will take care of this conversion automatically.
+
+```rust
+
+use std::fs;
+use std::io;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    fs::read_to_string("hello.txt")
+}
+```
+
+> even shorter way to read it
+
+
+### the `?` operator + `Result`
+
+`?` can be used on any function that returns `Result`, `Option`, or any type of `std::ops::Try`
+
+the `main` function is special and there are restrictions on what its return type can be
+
+```rust
+use std::error::Error;
+use std::fs::File;
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let f = File::open("hello.txt")?;
+
+    Ok(())
+}
+```
+
+
+## To panic! or not to panic!
+
+when code `panics` there is no way to recover. when you chose a `Result` value, you give the callee options to recover
+
+### cases where you have more information than the compiler
+
+it would be appropriate to call `unwrap` when you have some other logic that ensures `Result` will have an `Ok` value -- this isn't something the compiler would pick up on.
+
+`let home: IpAddr = "127.0.0.1".parse().unwrap();`
+
+> parsing a hardcoded string literal, we know `unwrap` will always succeed
+
+### Guidelines for error handeling
+
+panicking is okay when:
+- the bad state is not something that's expected to happen
+- your code after this point needs to rely on not being in the bad state
+- there's not a good way to encode this information in the types you use
+
+however, when failure is expected, a `Result` is more appropriate
+
+## Custom types for validation
+
+```rust
+pub struct Guess {
+    value: i32,
+}
+
+impl Guess {
+    pub fn new(value: i32) -> Guess {
+        if value < 1 || value > 100 {
+            panic!("Guess value must be between 1 and 100, got {}.", value);
+        }
+
+        Guess { value }
+    }
+
+    pub fn value(&self) -> i32 {
+        self.value
+    }
+}
+```
+
+Now, `Guess` will validate and ensure the value is between `1` and `100` on every initalization
+
+# Generic Types, Traits, and Lifetimes
